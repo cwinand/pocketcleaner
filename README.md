@@ -5,7 +5,7 @@ Pocket is my read later app of choice, but if an article is worth saving for ref
 
 
 ##Workflow
-- Save articles from everywhere first to Pocket
+- Save articles from anywhere to Pocket
 - If article is worth saving, favorite it
 - When done reading, tag it and archive it
 - On a regular basis (I do it once every week or two) run this script to move the favorited articles to Evernote, unfavorite them, and archive them if not archived yet

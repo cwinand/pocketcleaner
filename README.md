@@ -1,4 +1,4 @@
-# pocketcleaner
+# pocketcleaner [incomplete]
 Command line Ruby program to move my backlog of articles from Pocket into Evernote
 
 Pocket is my read later app of choice, but if an article is worth saving for reference I keep it in Evernote. I needed a way to bulk-move a backlog of these reference articles since doing it one by one was ridiculous. I wrote it in Ruby because I wanted to practice Ruby.

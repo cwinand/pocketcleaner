@@ -1,6 +1,6 @@
 require "net/http"
-require("net/https")
-require("pp")
+require "net/https"
+require "pp"
 
 class PocketAPI
   API_BASE_URL = "https://getpocket.com"

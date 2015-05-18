@@ -20,7 +20,8 @@ class PocketAPI
       "redirect_uri" => "#{AUTHORIZATION_REDIRECT_URI}"
     })
     @auth_request_header = {
-      "Content-Type" => "application/x-www-form-urlencoded; charset=UTF8"
+      "Content-Type" => "application/x-www-form-urlencoded; charset=UTF8",
+      "X-Accept" => "application/json"
     }
 
     @api_uri = URI.parse(API_BASE_URL)

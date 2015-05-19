@@ -21,11 +21,11 @@ class PocketAPI
     })
     @auth_request_header = {
       "Content-Type" => "application/x-www-form-urlencoded; charset=UTF8",
-      "X-Accept" => "application/json"
+      "X-Accept" => "application/json; charset=UTF8"
     }
 
     @api_uri = URI.parse(API_BASE_URL)
-    @auth_request_path_with_data = AUTHORIZATION_REQUEST_PATH + @auth_request_data
+    @auth_request_path_with_data = "#{AUTHORIZATION_REQUEST_PATH}?#{@auth_request_data}"
     @https = Net::HTTP.new(@api_uri.host, @api_uri.port)
     @https.use_ssl = true
     @auth_request = Net::HTTP::Post.new(@auth_request_path_with_data, @auth_request_header)

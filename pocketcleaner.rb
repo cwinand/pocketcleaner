@@ -30,8 +30,7 @@ class PocketAPI
     @https.use_ssl = true
 
     @auth_request = Net::HTTP::Post.new(AUTHORIZATION_REQUEST_PATH, @auth_request_header)
-    @auth_request.body(@auth_request_data)
-
+    @auth_request.body = @auth_request_data
     @access_token = @https.request(@auth_request)
   end
 

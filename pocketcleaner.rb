@@ -45,5 +45,6 @@ class EvernoteAPI
 end
 
 pocket = PocketAPI.new(ARGV[0])
-pp pocket
-pp pocket.get_access_token
+
+token = pocket.get_access_token
+pp JSON.parse(token)

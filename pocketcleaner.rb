@@ -21,7 +21,7 @@ class PocketAPI
     })
     @auth_request_header = {
       "Content-Type" => "application/x-www-form-urlencoded; charset=UTF8",
-      "X-Accept" => "application/json; charset=UTF8"
+      "X-Accept" => "application/json"
     }
 
     @api_uri = URI.parse(API_BASE_URL)

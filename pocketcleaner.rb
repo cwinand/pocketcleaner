@@ -46,5 +46,5 @@ end
 
 pocket = PocketAPI.new(ARGV[0])
 
-token = pocket.get_access_token
+token = pocket.get_access_token.body
 pp JSON.parse(token)

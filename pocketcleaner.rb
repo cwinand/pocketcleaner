@@ -1,5 +1,6 @@
 require "net/http"
 require "net/https"
+require "json"
 require "pp"
 
 class PocketAPI
@@ -15,20 +16,22 @@ class PocketAPI
   end
 
   def get_access_token
-    @auth_request_data = URI.encode_www_form({
-      "consumer_key" => "#{@consumer_key}",
-      "redirect_uri" => "#{AUTHORIZATION_REDIRECT_URI}"
-    })
+    @auth_request_data = {
+      :consumer_key => "#{@consumer_key}",
+      :redirect_uri => "#{AUTHORIZATION_REDIRECT_URI}"
+    }.to_json
     @auth_request_header = {
-      "Content-Type" => "application/x-www-form-urlencoded; charset=UTF8",
+      "Content-Type" => "application/json; charset=UTF8",
       "X-Accept" => "application/json"
     }
-
     @api_uri = URI.parse(API_BASE_URL)
-    @auth_request_path_with_data = "#{AUTHORIZATION_REQUEST_PATH}?#{@auth_request_data}"
+
     @https = Net::HTTP.new(@api_uri.host, @api_uri.port)
     @https.use_ssl = true
-    @auth_request = Net::HTTP::Post.new(@auth_request_path_with_data, @auth_request_header)
+
+    @auth_request = Net::HTTP::Post.new(AUTHORIZATION_REQUEST_PATH, @auth_request_header)
+    @auth_request.body(@auth_request_data)
+
     @access_token = @https.request(@auth_request)
   end
 

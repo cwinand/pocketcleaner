@@ -1,5 +1,8 @@
+require "oauth"
+require "oauth/consumer"
+require "evernote_oauth"
 require "net/http"
-require "net/https"
+
 require "json"
 require "launchy"
 require "openssl"
@@ -103,13 +106,31 @@ end
 
 class EvernoteAPI
 
-  def initialize(consumer_key)
-    @consumer_key = consumer_key
+  def initialize(developer_token)
+    @developer_token = developer_token
+
+
+    # Set up the NoteStore client
+    client = EvernoteOAuth::Client.new(
+        token: developer_token
+    )
+    note_store = client.note_store
+
+    # Make API calls
+    notebooks = note_store.listNotebooks
+    notebooks.each do |notebook|
+      puts "Notebook: #{notebook.name}";
+    end
+
+
+
   end
+
 
 end
 
 pocket = PocketAPI.new(ARGV[0])
+evernote = EvernoteAPI.new(ARGV[1])
 
-pocket.convert_request_token
-pp pocket.retrieve_favorites
+# pocket.convert_request_token
+# pp pocket.retrieve_favorites

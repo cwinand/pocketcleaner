@@ -109,28 +109,34 @@ class EvernoteAPI
   def initialize(developer_token)
     @developer_token = developer_token
 
-
     # Set up the NoteStore client
-    client = EvernoteOAuth::Client.new(
+    @client = EvernoteOAuth::Client.new(
         token: developer_token
     )
-    note_store = client.note_store
-
-    # Make API calls
-    notebooks = note_store.listNotebooks
-    notebooks.each do |notebook|
-      puts "Notebook: #{notebook.name}";
-    end
-
-
+    @note_store = @client.note_store
 
   end
 
+  def make_note(note_body="", note_title="")
+    note_body = note_body
+
+    n_body = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    n_body += "<!DOCTYPE en-note SYSTEM \"http://xml.evernote.com/pub/enml2.dtd\">"
+    n_body += "<en-note>#{note_body}</en-note>"
+
+    note = Evernote::EDAM::Type::Note.new
+    note.title = note_title
+    note.content = n_body
+
+    created_note = @note_store.createNote(note)
+  end
 
 end
 
-pocket = PocketAPI.new(ARGV[0])
-evernote = EvernoteAPI.new(ARGV[1])
-
+# pocket = PocketAPI.new(ARGV[0])
+# evernote = EvernoteAPI.new(ARGV[1])
+#
 # pocket.convert_request_token
-# pp pocket.retrieve_favorites
+# favs = pocket.retrieve_favorites
+# fav_one = favs.values[0]
+# evernote.make_note(fav_one["excerpt"], fav_one["resolved_title"])

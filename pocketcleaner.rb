@@ -2,16 +2,15 @@ require "oauth"
 require "oauth/consumer"
 require "evernote_oauth"
 require "net/http"
-
 require "json"
 require "launchy"
 require "openssl"
-require "pp"
 
 class PocketAPI
   attr_reader(
       :consumer_key,
-      :access_token
+      :access_token,
+      :modify_settings
   )
 
   API_BASE_URL = "https://getpocket.com"
@@ -30,12 +29,22 @@ class PocketAPI
         "Content-Type" => "application/json; charset=UTF8",
         "X-Accept" => "application/json"
     }
-
     @https = Net::HTTP.new(@api_uri.host, @api_uri.port)
     @https.use_ssl = true
     @https.verify_mode = OpenSSL::SSL::VERIFY_NONE
     # TODO: This is not safe! Do not run over unsecured connection. Fix SSL verification before going to production
+    @modify_settings = {
+        :unfavorite => true,
+        :archive => true
+    }
 
+    puts "Do you want to unfavorite items that have been moved? yes/no"
+    @modify_settings[:unfavorite] = false if $stdin.gets.chomp == 'no'
+    puts "Do you want to archive items that have been moved? yes/no"
+    @modify_settings[:archive] = false if $stdin.gets.chomp == 'no'
+
+
+    convert_request_token
   end
 
   def make_api_request(url, data)
@@ -88,11 +97,12 @@ class PocketAPI
     end
   end
 
-  def retrieve_favorites
+  def retrieve(favorites=0)
     request_data = {
         :consumer_key => @consumer_key,
         :access_token => @access_token,
-        :favorite => 1
+        :favorite => favorites,
+        :detailType => "complete"
     }.to_json
 
     retrieve_resp = make_api_request(API_RETRIEVE_PATH, request_data)
@@ -101,10 +111,117 @@ class PocketAPI
     retrieve_resp_body["list"]
   end
 
+  def modify(id, is_individual=true)
+    request_data = {
+        :consumer_key => @consumer_key,
+        :access_token => @access_token,
+        :actions => []
+    }
+
+    if @modify_settings[:archive] || @modify_settings[:unfavorite]
+      if @modify_settings[:archive]
+        action = {
+            :item_id => id,
+            :action => 'archive'
+        }
+        request_data[:actions].push action
+      end
+
+      if @modify_settings[:unfavorite]
+        action = {
+            :item_id => id,
+            :action => 'unfavorite'
+        }
+        request_data[:actions].push action
+      end
+    end
+
+    #usually modify will be run in batch through the modify_list method
+    #but we can send the modify request on an individual basis if needed
+    if is_individual
+      modify_resp = make_api_request(API_MODIFY_PATH, request_data.to_json)
+      modify_resp_body = JSON.parse(modify_resp.body)
+    else
+      request_data[:actions]
+    end
+  end
+
+  def modify_list(list)
+    request_data = {
+        :consumer_key => @consumer_key,
+        :access_token => @access_token,
+        :actions => []
+    }
+
+    list.each do |item|
+      actions = modify(item[:id], false)
+      actions.each do |action|
+        request_data[:actions].push action
+      end
+    end
+
+    modify_resp = make_api_request(API_MODIFY_PATH, request_data.to_json)
+    modify_resp_body = JSON.parse(modify_resp.body)
+  end
+
+  def process_list(list)
+    list = list
+    modified_list = []
+
+    if list.empty?
+      puts "this list is empty"
+    else
+      list.each do |id, item|
+        #don't need query string info from linked urls
+        url = item['resolved_url'].split("?")[0]
+
+        content = "<a href='#{URI.escape(url)}'>#{url}</a>"
+        content += "<div><br /></div>"
+        content += CGI.escapeHTML(item['excerpt'])
+
+        title = if item["resolved_title"].empty?
+                  url
+                else
+                  item["resolved_title"]
+                end
+
+        note_data = {
+            :id => id,
+            :title => title,
+            :content => content
+        }
+
+        if item["tags"].count > 1
+          puts "What tag do you want for the article \"#{title}\""
+          puts "Available: #{item['tags'].keys}"
+          selected = $stdin.gets.chomp
+
+          while !item['tags'].include? selected
+            puts "You typed '#{selected}' which is not in the list of tags."
+            puts "Try again: #{item['tags'].keys}"
+            selected = $stdin.gets.chomp
+          end
+
+          note_data[:notebook] = selected
+        else
+          note_data[:notebook] = item["tags"].keys[0]
+        end
+
+        modified_list.push(note_data)
+        end
+    end
+
+    modified_list
+  end
 
 end
 
 class EvernoteAPI
+  attr_reader(
+      :note_store,
+      :developer_token,
+      :pocket_tag_as_notebook
+  )
 
   def initialize(developer_token)
     @developer_token = developer_token
@@ -115,9 +232,21 @@ class EvernoteAPI
     )
     @note_store = @client.note_store
 
+    @pocket_tag_as_notebook = {
+        :business => "Business Reference",
+        :career => "Career Reference",
+        :christianity => "Bible/Christianity Reference",
+        :design => "Design Reference",
+        :dev => "Development Reference",
+        :family => "Family/Home Reference",
+        :food => "Cooking Reference",
+        :health => "Health Reference",
+        :workflow => "Work/Productivity Reference"
+    }
+
   end
 
-  def make_note(note_body="", note_title="")
+  def make_note(note_body="", note_title="", notebook=nil)
     note_body = note_body
 
     n_body = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
@@ -127,16 +256,47 @@ class EvernoteAPI
     note = Evernote::EDAM::Type::Note.new
     note.title = note_title
     note.content = n_body
+    note.notebookGuid = notebook
+    note.tagNames = "needs-tagged"
 
     created_note = @note_store.createNote(note)
   end
 
+
+
+  def make_all_notes(list)
+    available_notebooks = @note_store.listNotebooks
+
+    list.each_with_index do |note, index|
+      print "Adding article #{index} of #{list.length - 1}: '#{note[:title]}'\r"
+      $stdout.flush
+
+      notebook_guid = nil
+      notebook_name_from_note = @pocket_tag_as_notebook[note[:notebook].to_sym]
+
+      available_notebooks.each do |notebook|
+        notebook_guid = notebook.guid if notebook.name === notebook_name_from_note
+      end
+
+      note[:notebook] = notebook_guid
+
+      begin
+        make_note(note[:content], note[:title], note[:notebook])
+      rescue Evernote::EDAM::Error::EDAMUserException => raised_error
+        puts raised_error
+      end
+
+    end
+  end
+
 end
 
-# pocket = PocketAPI.new(ARGV[0])
-# evernote = EvernoteAPI.new(ARGV[1])
-#
-# pocket.convert_request_token
-# favs = pocket.retrieve_favorites
-# fav_one = favs.values[0]
-# evernote.make_note(fav_one["excerpt"], fav_one["resolved_title"])
+
+pocket = PocketAPI.new(ARGV[0])
+evernote = EvernoteAPI.new(ARGV[1])
+
+# favs = pocket.retrieve(1)
+# list = pocket.process_list(favs)
+# evernote.make_all_notes list
+# pocket.modify_list list
+# pocket.modify(list[0][:id], true)

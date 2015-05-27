@@ -188,7 +188,17 @@ class PocketAPI
         # we don't want query string info from linked urls
         url = item['resolved_url'].split("?")[0]
 
-        content = "<a href='#{URI.escape(url)}'>#{url}</a>"
+        if item["has_video"].to_i == 0
+          content = "<a href='#{URI.escape(url)}'>#{url}</a>"
+        else
+          videos = item["videos"]
+          content = ""
+          videos.each do |video|
+            src = video[1]["src"]
+            content += "<a href='#{URI.escape(src)}'>#{src}</a>"
+          end
+        end
+
         content += "<div><br /></div>"
         content += CGI.escapeHTML(item['excerpt'])
 

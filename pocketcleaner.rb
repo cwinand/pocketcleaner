@@ -223,14 +223,22 @@ class EvernoteAPI
       :pocket_tag_as_notebook
   )
 
-  def initialize(developer_token)
+  def initialize(developer_token, sandbox=true)
     @developer_token = developer_token
 
     # Set up the NoteStore client
     @client = EvernoteOAuth::Client.new(
-        token: developer_token
+        token: developer_token,
+        sandbox: sandbox
     )
-    @note_store = @client.note_store
+
+    begin
+      @note_store = @client.note_store
+    rescue Evernote::EDAM::Error::EDAMSystemException => raised_error
+      puts "Authentication failed"
+      puts "Error Code: #{raised_error.errorCode}"
+      puts "Message: #{raised_error.message}"
+    end
 
     @pocket_tag_as_notebook = {
         :business => "Business Reference",
@@ -257,7 +265,7 @@ class EvernoteAPI
     note.title = note_title
     note.content = n_body
     note.notebookGuid = notebook
-    note.tagNames = "needs-tagged"
+    note.tagNames = ["needs-tagged"]
 
     created_note = @note_store.createNote(note)
   end
@@ -291,12 +299,11 @@ class EvernoteAPI
 
 end
 
-
-pocket = PocketAPI.new(ARGV[0])
-evernote = EvernoteAPI.new(ARGV[1])
+#
+# pocket = PocketAPI.new(ARGV[0])
+# evernote = EvernoteAPI.new(ARGV[1], false) #use false for prod environment
 
 # favs = pocket.retrieve(1)
 # list = pocket.process_list(favs)
 # evernote.make_all_notes list
 # pocket.modify_list list
-# pocket.modify(list[0][:id], true)

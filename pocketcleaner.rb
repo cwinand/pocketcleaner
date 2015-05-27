@@ -33,6 +33,8 @@ class PocketAPI
     @https.use_ssl = true
     @https.verify_mode = OpenSSL::SSL::VERIFY_NONE
     # TODO: This is not safe! Do not run over unsecured connection. Fix SSL verification before going to production
+
+    # default settings for modify actions on Pocket items
     @modify_settings = {
         :unfavorite => true,
         :archive => true
@@ -43,7 +45,8 @@ class PocketAPI
     puts "Do you want to archive items that have been moved? yes/no"
     @modify_settings[:archive] = false if $stdin.gets.chomp == 'no'
 
-
+    # Pocket api authentication requires an approval flow for each session
+    # convert_request_token method on initialization does the full process
     convert_request_token
   end
 
@@ -67,6 +70,7 @@ class PocketAPI
   end
 
   def send_for_approval
+    # currently Pocket api requires a browser approval & redirect for authentication
     approval_request_url = "#{API_BASE_URL}#{AUTHORIZATION_APPROVAL_PATH}?request_token=#{@request_token}&redirect_uri=#{AUTHORIZATION_REDIRECT_URI}"
     Launchy.open approval_request_url
   end
@@ -82,6 +86,9 @@ class PocketAPI
         :code => @request_token
     }.to_json
 
+    # Until user approves the 'app', Pocket will respond to a token conversion request
+    # with an X-Error-Code header of 158. Wait three seconds before hitting it
+    #again to give time to user to approve the app. Limit to ten to avoid rate limits
     while !approved
       convert_response = make_api_request(AUTHORIZATION_ACCESS_TOKEN_PATH, convert_request_data)
       if convert_response.kind_of? Net::HTTPSuccess
@@ -97,7 +104,9 @@ class PocketAPI
     end
   end
 
-  def retrieve(favorites=0)
+  # Pocket api method "retrieve" can take several arguments, but right now only
+  # need is for favorites (defaults to fetching favorites)
+  def retrieve(favorites=1)
     request_data = {
         :consumer_key => @consumer_key,
         :access_token => @access_token,
@@ -111,6 +120,8 @@ class PocketAPI
     retrieve_resp_body["list"]
   end
 
+  # actions needed currently are just 'archive' and 'unfavorite', but Pocket
+  # has many more available
   def modify(id, is_individual=true)
     request_data = {
         :consumer_key => @consumer_key,
@@ -164,6 +175,8 @@ class PocketAPI
     modify_resp_body = JSON.parse(modify_resp.body)
   end
 
+  # process_list is for taking the list from Pocket api retrieve and returning
+  # a new list for adding these things to Evernote
   def process_list(list)
     list = list
     modified_list = []
@@ -172,13 +185,14 @@ class PocketAPI
       puts "this list is empty"
     else
       list.each do |id, item|
-        #don't need query string info from linked urls
+        # we don't want query string info from linked urls
         url = item['resolved_url'].split("?")[0]
 
         content = "<a href='#{URI.escape(url)}'>#{url}</a>"
         content += "<div><br /></div>"
         content += CGI.escapeHTML(item['excerpt'])
 
+        # some items get saved to pocket without titles
         title = if item["resolved_title"].empty?
                   url
                 else
@@ -276,12 +290,15 @@ class EvernoteAPI
     available_notebooks = @note_store.listNotebooks
 
     list.each_with_index do |note, index|
+      # a little user feedback as the app adds notes, otherwise it isn't clear that
+      # things are happening
       print "Adding article #{index} of #{list.length - 1}: '#{note[:title]}'\r"
       $stdout.flush
 
+      # this is where Evernote notebook ids are assigned based on the tag on the
+      # pocket item
       notebook_guid = nil
       notebook_name_from_note = @pocket_tag_as_notebook[note[:notebook].to_sym]
-
       available_notebooks.each do |notebook|
         notebook_guid = notebook.guid if notebook.name === notebook_name_from_note
       end
@@ -301,9 +318,9 @@ end
 
 #
 # pocket = PocketAPI.new(ARGV[0])
-# evernote = EvernoteAPI.new(ARGV[1]) #pass true as second arg for staging environment
+# evernote = EvernoteAPI.new(ARGV[1]) # pass true as second arg for staging environment
 
-# favs = pocket.retrieve(1)
+# favs = pocket.retrieve # pass 0 as argument to fetch non-favorites
 # list = pocket.process_list(favs)
 # evernote.make_all_notes list
 # pocket.modify_list list

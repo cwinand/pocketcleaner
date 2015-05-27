@@ -223,7 +223,7 @@ class EvernoteAPI
       :pocket_tag_as_notebook
   )
 
-  def initialize(developer_token, sandbox=true)
+  def initialize(developer_token, sandbox=false)
     @developer_token = developer_token
 
     # Set up the NoteStore client
@@ -301,7 +301,7 @@ end
 
 #
 # pocket = PocketAPI.new(ARGV[0])
-# evernote = EvernoteAPI.new(ARGV[1], false) #use false for prod environment
+# evernote = EvernoteAPI.new(ARGV[1]) #pass true as second arg for staging environment
 
 # favs = pocket.retrieve(1)
 # list = pocket.process_list(favs)
